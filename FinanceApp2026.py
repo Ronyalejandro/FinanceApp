@@ -2,157 +2,68 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
+import json
+import hashlib
+import hmac
 from datetime import datetime
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+try:
+    import matplotlib.pyplot as plt  # type: ignore
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg  # type: ignore
+    HAS_MATPLOTLIB = True
+except Exception:
+    # matplotlib no está disponible en el entorno; la aplicación
+    # seguirá funcionando pero sin la visualización de gráficos.
+    plt = None
+    FigureCanvasTkAgg = None
+    HAS_MATPLOTLIB = False
 import sys
 import os
+from services.transaction_service import TransactionService
+
+# Path para almacenar hash de PIN fuera del repositorio
+CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".financeapp_config.json")
+
+def _save_pin_hash(pin: str) -> None:
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt, 100_000)
+    data = {"salt": salt.hex(), "hash": dk.hex()}
+    try:
+        with open(CONFIG_PATH, "w") as f:
+            json.dump(data, f)
+        try:
+            os.chmod(CONFIG_PATH, 0o600)
+        except OSError:
+            # Ignorar en sistemas Windows que no admiten chmod igual
+            pass
+    except OSError:
+        # No exponemos detalles al usuario aquí; el creador puede ver logs
+        raise
+
+def _verify_pin(pin: str) -> bool:
+    if not os.path.exists(CONFIG_PATH):
+        return False
+    with open(CONFIG_PATH, "r") as f:
+        data = json.load(f)
+    salt = bytes.fromhex(data["salt"])
+    stored = bytes.fromhex(data["hash"])
+    dk = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt, 100_000)
+    return hmac.compare_digest(dk, stored)
 
 # --- Configuración Global ---
 ctk.set_appearance_mode("Dark")  # Modes: "System" (standard), "Dark", "Light"
 ctk.set_default_color_theme("dark-blue")  # Themes: "blue" (standard), "green", "dark-blue"
 
-class DatabaseManager:
-    """Gestor de la base de datos SQLite."""
-    def __init__(self, db_name="finanzas_personales.db"):
-        self.db_name = db_name
-        self.init_db()
-
-    def connect(self):
-        return sqlite3.connect(self.db_name)
-
-    def init_db(self):
-        """Inicializa las tablas si no existen."""
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            
-            # Tabla de Transacciones (Ingresos y Gastos)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS transacciones (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    tipo TEXT NOT NULL, -- 'Ingreso', 'Gasto', 'PagoCredito'
-                    categoria TEXT,
-                    monto REAL NOT NULL,
-                    fecha TEXT NOT NULL,
-                    descripcion TEXT,
-                    metodo_pago TEXT -- 'Efectivo', 'Tarjeta', 'CreditoInterno'
-                )
-            ''')
-
-            # Tabla de Configuración de Crédito (Sistema Cashéa)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS credito_config (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    limite_total REAL DEFAULT 0,
-                    saldo_utilizado REAL DEFAULT 0
-                )
-            ''')
-            
-            # Inicializar crédito si está vacío
-            cursor.execute("SELECT count(*) FROM credito_config")
-            if cursor.fetchone()[0] == 0:
-                cursor.execute("INSERT INTO credito_config (limite_total, saldo_utilizado) VALUES (500, 0)")
-
-            # Tabla de Metas de Ahorro
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS metas_ahorro (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nombre TEXT NOT NULL,
-                    monto_objetivo REAL NOT NULL,
-                    monto_actual REAL DEFAULT 0
-                )
-            ''')
-            conn.commit()
-
-    # --- Métodos CRUD ---
-    def add_transaction(self, tipo, categoria, monto, fecha, descripcion, metodo):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO transacciones (tipo, categoria, monto, fecha, descripcion, metodo_pago)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (tipo, categoria, monto, fecha, descripcion, metodo))
-            
-            # Lógica de Crédito Interno
-            if metodo == "CreditoInterno" and tipo == "Gasto":
-                self.update_credit_usage(monto, add=True)
-            elif tipo == "PagoCredito":
-                self.update_credit_usage(monto, add=False)
-                
-            conn.commit()
-
-    def get_transactions(self, limit=50):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM transacciones ORDER BY fecha DESC, id DESC LIMIT ?", (limit,))
-            return cursor.fetchall()
-
-    def get_summary(self):
-        """Calcula totales para el dashboard."""
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            # Ingresos
-            cursor.execute("SELECT SUM(monto) FROM transacciones WHERE tipo='Ingreso'")
-            ingresos = cursor.fetchone()[0] or 0.0
-            
-            # Gastos (excluyendo pagos de crédito para no duplicar en el flujo de caja operativo)
-            cursor.execute("SELECT SUM(monto) FROM transacciones WHERE tipo='Gasto'")
-            gastos = cursor.fetchone()[0] or 0.0
-
-            return ingresos, gastos
-
-    def get_credit_info(self):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT limite_total, saldo_utilizado FROM credito_config LIMIT 1")
-            return cursor.fetchone()
-
-    def update_credit_limit(self, new_limit):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("UPDATE credito_config SET limite_total = ?", (new_limit,))
-            conn.commit()
-
-    def update_credit_usage(self, amount, add=True):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            current = self.get_credit_info()
-            saldo_actual = current[1]
-            if add:
-                new_saldo = saldo_actual + amount
-            else:
-                new_saldo = max(0, saldo_actual - amount)
-            cursor.execute("UPDATE credito_config SET saldo_utilizado = ?", (new_saldo,))
-            conn.commit()
-
-    def get_expenses_by_category(self):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT categoria, SUM(monto) FROM transacciones WHERE tipo='Gasto' GROUP BY categoria")
-            return cursor.fetchall()
-            
-    def add_savings_goal(self, nombre, objetivo):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO metas_ahorro (nombre, monto_objetivo) VALUES (?, ?)", (nombre, objetivo))
-            conn.commit()
-
-    def get_savings_goals(self):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM metas_ahorro")
-            return cursor.fetchall()
-    
-    def update_savings_progress(self, id_meta, monto):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("UPDATE metas_ahorro SET monto_actual = monto_actual + ? WHERE id = ?", (monto, id_meta))
-            conn.commit()
-
+# Importar DatabaseManager desde el módulo refactorizado
+from db.database import DatabaseManager
 
 class LoginWindow(ctk.CTkToplevel):
-    """Ventana de seguridad simple."""
-    def __init__(self, parent, on_success):
+    """Ventana de seguridad para autenticación mediante PIN.
+
+    El PIN se guarda como hash PBKDF2 en el archivo de configuración
+    del usuario (`~/.financeapp_config.json`). Si no existe, la ventana
+    solicita crear el PIN inicial.
+    """
+    def __init__(self, parent, on_success) -> None:
         super().__init__(parent)
         self.title("Seguridad - Finanzas Personales")
         self.geometry("300x200")
@@ -167,32 +78,66 @@ class LoginWindow(ctk.CTkToplevel):
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f'{width}x{height}+{x}+{y}')
 
-        self.label = ctk.CTkLabel(self, text="Ingrese PIN de Acceso (1234)", font=("Roboto", 14))
+        # Si no existe configuración, pedimos crear PIN inicial
+        self.first_time = not os.path.exists(CONFIG_PATH)
+        if self.first_time:
+            self.label = ctk.CTkLabel(self, text="Crear PIN de Acceso", font=("Roboto", 14))
+        else:
+            self.label = ctk.CTkLabel(self, text="Ingrese PIN de Acceso", font=("Roboto", 14))
         self.label.pack(pady=20)
 
         self.entry = ctk.CTkEntry(self, show="*")
         self.entry.pack(pady=10)
 
-        self.btn = ctk.CTkButton(self, text="Entrar", command=self.check_password)
+        btn_text = "Crear" if self.first_time else "Entrar"
+        btn_cmd = self.create_pin if self.first_time else self.check_password
+        self.btn = ctk.CTkButton(self, text=btn_text, command=btn_cmd)
         self.btn.pack(pady=10)
         
         self.protocol("WM_DELETE_WINDOW", sys.exit)
         self.attributes("-topmost", True)
 
-    def check_password(self):
-        # En una app real, esto usaría hashing
-        if self.entry.get() == "1234":
+    def check_password(self) -> None:
+        """Verifica el PIN ingresado contra el hash almacenado.
+
+        Muestra mensajes genéricos al usuario en caso de error.
+        """
+        try:
+            if _verify_pin(self.entry.get()):
+                self.on_success()
+                self.destroy()
+            else:
+                messagebox.showerror("Error", "PIN Incorrecto")
+        except (OSError, ValueError, json.JSONDecodeError):
+            messagebox.showerror("Error", "Error al verificar PIN")
+
+    def create_pin(self) -> None:
+        """Crea y almacena el hash del PIN ingresado (mínimo 4 caracteres)."""
+        pin = self.entry.get()
+        if not pin or len(pin) < 4:
+            messagebox.showerror("Error", "El PIN debe tener al menos 4 caracteres")
+            return
+        try:
+            _save_pin_hash(pin)
+            messagebox.showinfo("Listo", "PIN creado. Iniciando aplicación.")
             self.on_success()
             self.destroy()
-        else:
-            messagebox.showerror("Error", "PIN Incorrecto")
+        except OSError:
+            messagebox.showerror("Error", "No se pudo guardar el PIN")
 
 
 class FinanceApp(ctk.CTk):
-    """Clase principal de la aplicación."""
-    def __init__(self):
+    """Clase principal de la aplicación y controlador de la UI.
+
+    Contiene la inicialización de la ventana principal, la navegación
+    y los handlers que delegan en `TransactionService` para la lógica
+    financiera.
+    """
+    def __init__(self) -> None:
         super().__init__()
         self.db = DatabaseManager()
+        # Servicio que encapsula validaciones y delega operaciones atómicas en DB
+        self.tx_service = TransactionService(self.db)
 
         # Configuración de ventana
         self.title("Finanzas Personales - Master System")
@@ -207,6 +152,7 @@ class FinanceApp(ctk.CTk):
         LoginWindow(self, self.start_app)
 
     def start_app(self):
+        """Muestra la ventana principal tras autenticación."""
         self.deiconify()
         self.create_sidebar()
         self.show_dashboard()
@@ -239,10 +185,12 @@ class FinanceApp(ctk.CTk):
                                                                        command=self.change_appearance_mode_event)
         self.appearance_mode_optionemenu.grid(row=8, column=0, padx=20, pady=(10, 20))
 
-    def change_appearance_mode_event(self, new_appearance_mode: str):
+    def change_appearance_mode_event(self, new_appearance_mode: str) -> None:
+        """Cambia el modo de apariencia del tema (Dark/Light/System)."""
         ctk.set_appearance_mode(new_appearance_mode)
 
-    def clear_main_frame(self):
+    def clear_main_frame(self) -> None:
+        """Limpia widgets del área principal sin tocar la barra lateral ni toplevels."""
         for widget in self.winfo_children():
             if widget != self.sidebar_frame and not isinstance(widget, tk.Toplevel):
                 widget.destroy()
@@ -275,9 +223,9 @@ class FinanceApp(ctk.CTk):
         chart_frame = ctk.CTkFrame(main_frame)
         chart_frame.pack(fill="both", expand=True, pady=20)
 
-        # Gráfico de Gastos por Categoría
+        # Gráfico de Gastos por Categoría (si matplotlib está disponible)
         data = self.db.get_expenses_by_category()
-        if data:
+        if HAS_MATPLOTLIB and data:
             categories = [x[0] for x in data]
             amounts = [x[1] for x in data]
 
@@ -290,10 +238,16 @@ class FinanceApp(ctk.CTk):
             canvas = FigureCanvasTkAgg(fig, master=chart_frame)
             canvas.draw()
             canvas.get_tk_widget().pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        elif data:
+            ctk.CTkLabel(chart_frame, text="Gráficos deshabilitados (matplotlib no disponible)").pack(expand=True)
         else:
             ctk.CTkLabel(chart_frame, text="No hay datos suficientes para gráficos").pack(expand=True)
 
-    def create_card(self, parent, title, value, color):
+    def create_card(self, parent, title: str, value: str, color: str) -> ctk.CTkFrame:
+        """Crea una tarjeta visual resumen usada en el dashboard.
+
+        Retorna el frame creado para su colocado en el layout.
+        """
         frame = ctk.CTkFrame(parent)
         ctk.CTkLabel(frame, text=title, font=("Arial", 14)).pack(pady=(10, 5))
         ctk.CTkLabel(frame, text=value, font=("Arial", 20, "bold"), text_color=color).pack(pady=(0, 10))
@@ -341,7 +295,8 @@ class FinanceApp(ctk.CTk):
         # Tabla de Historial (Treeview con estilo Custom)
         self.create_treeview(main_frame)
 
-    def create_treeview(self, parent):
+    def create_treeview(self, parent) -> None:
+        """Crea y configura el `Treeview` para mostrar el historial de transacciones."""
         # Estilos para Treeview oscuro
         style = ttk.Style()
         style.theme_use("default")
@@ -375,25 +330,24 @@ class FinanceApp(ctk.CTk):
         self.refresh_table()
 
     def refresh_table(self):
+        """Refresca el contenido de la tabla de transacciones desde la BD."""
         for item in self.tree.get_children():
             self.tree.delete(item)
         for row in self.db.get_transactions():
             self.tree.insert("", "end", values=row)
 
-    def save_transaction(self):
+    def save_transaction(self) -> None:
+        """Handler que toma datos del formulario y crea la transacción.
+
+        Las validaciones de negocio (límite de crédito) se realizan en el
+        `TransactionService` y se reportan mediante `ValueError`.
+        """
         try:
             monto = float(self.var_monto.get())
             tipo = self.var_tipo.get()
             metodo = self.var_metodo.get()
-
-            # Validación de crédito
-            if tipo == "Gasto" and metodo == "CreditoInterno":
-                lim, used = self.db.get_credit_info()
-                if used + monto > lim:
-                    messagebox.showerror("Error", f"Límite de crédito excedido. Disponible: ${lim - used:.2f}")
-                    return
-
-            self.db.add_transaction(
+            # Delegar la creación al servicio (operación atómica en BD)
+            self.tx_service.create_transaction(
                 tipo,
                 self.var_cat.get(),
                 monto,
@@ -405,8 +359,11 @@ class FinanceApp(ctk.CTk):
             self.var_desc.set("")
             self.refresh_table()
             messagebox.showinfo("Éxito", "Transacción guardada correctamente")
-        except ValueError:
-            messagebox.showerror("Error", "El monto debe ser numérico")
+        except ValueError as e:
+            # Puede ser monto inválido o límite de crédito excedido
+            messagebox.showerror("Error", str(e))
+        except sqlite3.Error:
+            messagebox.showerror("Error", "Error al guardar la transacción")
 
     def show_credit(self):
         self.clear_main_frame()
@@ -460,15 +417,20 @@ class FinanceApp(ctk.CTk):
             messagebox.showerror("Error", "Número inválido")
 
     def pay_credit(self):
+        """Registra un pago de crédito utilizando el servicio transaccional."""
         try:
             val = float(self.pay_credit_var.get())
-            self.db.add_transaction("PagoCredito", "Financiero", val, datetime.now().strftime("%Y-%m-%d"), "Abono a Crédito Interno", "Transferencia")
+            # Usar servicio para operar de forma atómica
+            self.tx_service.create_transaction("PagoCredito", "Financiero", val, datetime.now().strftime("%Y-%m-%d"), "Abono a Crédito Interno", "Transferencia")
             self.show_credit()
             messagebox.showinfo("Pago", "Pago registrado y saldo liberado.")
         except ValueError:
             messagebox.showerror("Error", "Monto inválido")
+        except sqlite3.Error:
+            messagebox.showerror("Error", "Error al procesar el pago")
 
     def show_savings(self):
+        """Muestra y permite gestionar las metas de ahorro del usuario."""
         self.clear_main_frame()
         main_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         main_frame.grid(row=0, column=1, sticky="nsew", padx=20, pady=20)
@@ -499,7 +461,9 @@ class FinanceApp(ctk.CTk):
             card.pack(fill="x", pady=5)
             
             ctk.CTkLabel(card, text=f"{name}", font=("Arial", 16, "bold")).pack(anchor="w", padx=10, pady=(5,0))
-            ctk.CTkProgressBar(card).pack(fill="x", padx=10, pady=5) # Solo visual, requeriría configurar valor
+            prog = ctk.CTkProgressBar(card)
+            prog.set(pct)
+            prog.pack(fill="x", padx=10, pady=5)
             
             lbl_progress = ctk.CTkLabel(card, text=f"Progreso: ${current:.2f} / ${target:.2f} ({pct*100:.1f}%)")
             lbl_progress.pack(anchor="w", padx=10)
@@ -508,16 +472,22 @@ class FinanceApp(ctk.CTk):
             btn_add.pack(anchor="e", padx=10, pady=5)
 
     def create_goal(self):
+        """Crea una nueva meta de ahorro validando entrada del usuario."""
         try:
             target = float(self.goal_target.get())
             name = self.goal_name.get()
-            if name:
-                self.db.add_savings_goal(name, target)
-                self.show_savings()
-        except:
-            messagebox.showerror("Error", "Datos inválidos")
+            if not name:
+                messagebox.showerror("Error", "El nombre de la meta es obligatorio")
+                return
+            self.db.add_savings_goal(name, target)
+            self.show_savings()
+        except ValueError:
+            messagebox.showerror("Error", "Monto inválido")
+        except sqlite3.Error:
+            messagebox.showerror("Error", "Error al guardar la meta")
 
     def add_savings(self, gid, amount):
+        """Abona una cantidad fija a la meta identificada por `gid`."""
         self.db.update_savings_progress(gid, amount)
         self.show_savings()
 
