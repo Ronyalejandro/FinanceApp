@@ -7,10 +7,12 @@ import sqlite3
 from typing import Optional, Tuple, List
 
 
+from config import DB_PATH
+
 class DatabaseManager:
     """Gestor de la base de datos SQLite."""
-    def __init__(self, db_name: str = "finanzas_personales.db") -> None:
-        self.db_name = db_name
+    def __init__(self, db_name: str = None) -> None:
+        self.db_name = db_name or str(DB_PATH)
         self.init_db()
 
     def connect(self) -> sqlite3.Connection:

@@ -12,11 +12,30 @@ class TransactionService:
         self.db = db or DatabaseManager()
 
     def create_transaction(self, tipo: str, categoria: str, monto: float, fecha: str, descripcion: str, metodo: str) -> int:
-        # Validaciones simples
-        if monto < 0:
-            raise ValueError("El monto debe ser no negativo")
-        if tipo not in ("Ingreso", "Gasto", "PagoCredito"):
-            raise ValueError("Tipo de transacción inválido")
+        from models.schemas import TransactionCreate
+        from pydantic import ValidationError
 
-        # Delegar a DB (operación atómica internamente)
-        return self.db.add_transaction(tipo, categoria, monto, fecha, descripcion, metodo)
+        try:
+            # Validar con Pydantic
+            tx_data = TransactionCreate(
+                tipo=tipo,
+                categoria=categoria,
+                monto=monto,
+                fecha=fecha,
+                descripcion=descripcion,
+                metodo_pago=metodo
+            )
+            
+            # Delegar a DB usando datos validados
+            return self.db.add_transaction(
+                tx_data.tipo, 
+                tx_data.categoria, 
+                tx_data.monto, 
+                tx_data.fecha, 
+                tx_data.descripcion, 
+                tx_data.metodo_pago
+            )
+        except ValidationError as e:
+            # Simplificar mensaje de error para la UI
+            errors = [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
+            raise ValueError("\n".join(errors))
