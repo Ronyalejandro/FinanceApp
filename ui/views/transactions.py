@@ -1,8 +1,9 @@
-"""Transactions View."""
+"""Vista de Transacciones."""
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 from datetime import datetime
 from utils.constants import *
+
 
 class TransactionsView(ctk.CTkFrame):
     def __init__(self, parent, db, tx_service):
@@ -15,9 +16,11 @@ class TransactionsView(ctk.CTkFrame):
     def _setup_ui(self):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 40))
-        ctk.CTkLabel(header_frame, text="Transactions", font=FONT_TITLE_MAIN, text_color=COLOR_TEXT_WHITE).pack(side="left")
-        ctk.CTkButton(header_frame, text="Export CSV", command=self.export_csv, 
+        ctk.CTkLabel(header_frame, text="Transacciones", font=FONT_TITLE_MAIN, text_color=COLOR_TEXT_WHITE).pack(side="left")
+        ctk.CTkButton(header_frame, text="Exportar", command=self.export_csv, 
                       fg_color=COLOR_ACCENT_BLUE, width=100).pack(side="right")
+        ctk.CTkButton(header_frame, text="Eliminar", command=self.delete_selected,
+                      fg_color=theme_color(COLOR_ACCENT_RED), width=100).pack(side="right", padx=5)
 
         form_frame = ctk.CTkFrame(self, fg_color=COLOR_CARD_BG, corner_radius=12, border_width=1, border_color=COLOR_CARD_BORDER)
         form_frame.pack(fill="x", pady=10)
@@ -47,22 +50,22 @@ class TransactionsView(ctk.CTkFrame):
         ctk.CTkLabel(input_grid, text="Descripción:", font=FONT_BODY).grid(row=2, column=0, padx=10, pady=5, sticky="w")
         ctk.CTkEntry(input_grid, textvariable=self.var_desc, width=300).grid(row=2, column=1, columnspan=3, sticky="we", padx=10, pady=5)
 
-        ctk.CTkButton(form_frame, text="Add Transaction", command=self.save_transaction, 
-                      fg_color=COLOR_ACCENT_GREEN, hover_color="#27ae60", font=FONT_BODY, height=40).pack(pady=20, padx=20, fill="x")
+        ctk.CTkButton(form_frame, text="Agregar Transacción", command=self.save_transaction, 
+                      fg_color=COLOR_ACCENT_GREEN, text_color="#000000", hover_color="#27ae60", font=FONT_BODY, height=40).pack(pady=20, padx=20, fill="x")
 
         self.create_treeview()
 
     def create_treeview(self):
         style = ttk.Style()
         style.theme_use("default")
-        style.configure("Treeview", background="#1e1e1e", foreground="white", fieldbackground="#1e1e1e", rowheight=35, borderwidth=0)
+        style.configure("Treeview", background=COLOR_CARD_BG, foreground="white", fieldbackground=COLOR_CARD_BG, rowheight=35, borderwidth=0)
         style.map('Treeview', background=[('selected', COLOR_ACCENT_BLUE)])
-        style.configure("Treeview.Heading", background="#252525", foreground="white", font=(FONT_FAMILY, 11, 'bold'), borderwidth=0)
+        style.configure("Treeview.Heading", background=COLOR_SIDEBAR, foreground="white", font=(FONT_FAMILY, 11, 'bold'), borderwidth=0)
 
         tree_frame = ctk.CTkFrame(self, fg_color="transparent")
         tree_frame.pack(fill="both", expand=True, pady=10)
         
-        cols = ("ID", "Tipo", "Cat", "Monto", "Fecha", "Desc", "Metodo")
+        cols = ("ID", "Tipo", "Cat", "Monto", "Fecha", "Desc", "Método")
         self.tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=10)
         
         for col in cols:
@@ -84,6 +87,19 @@ class TransactionsView(ctk.CTkFrame):
         for row in self.db.get_transactions():
             self.tree.insert("", "end", values=row)
 
+    def delete_selected(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Advertencia", "Seleccione una transacción para eliminar")
+            return
+        item = selected[0]
+        values = self.tree.item(item, "values")
+        tx_id = values[0]
+        if messagebox.askyesno("Confirmar", f"¿Eliminar la transacción ID {tx_id}?"):
+            self.db.delete_transaction(tx_id)
+            self.refresh_table()
+            messagebox.showinfo("Éxito", "Transacción eliminada")
+
     def save_transaction(self):
         try:
             monto_str = self.var_monto.get()
@@ -96,7 +112,7 @@ class TransactionsView(ctk.CTkFrame):
             )
             self.var_monto.set(""); self.var_desc.set("")
             self.refresh_table()
-            messagebox.showinfo("Success", "Transaction saved successfully")
+            messagebox.showinfo("Success", "Transacción guardada exitosamente")
         except ValueError as e:
             messagebox.showerror("Error", str(e))
 
@@ -109,6 +125,6 @@ class TransactionsView(ctk.CTkFrame):
             try:
                 ds = DataService(self.db)
                 ds.export_transactions_csv(filename)
-                messagebox.showinfo("Success", "Data exported successfully")
+                messagebox.showinfo("Success", "Datos exportados exitosamente")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to export: {e}")

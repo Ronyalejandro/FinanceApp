@@ -1,23 +1,33 @@
-"""Constants and Enums for the Finance App."""
+#Constantes y Enumeraciones para la Aplicación de Finanzas.
+
+import customtkinter
 
 # Configuración de Archivos
 DB_NAME = "finanzas_personales.db"
 CONFIG_FILE = ".financeapp_config.json"
 
-# Colores (Tema Dark Premium)
-COLOR_BACKGROUND = "#0a0a0a"
-COLOR_SIDEBAR = "#0a0a0a"
-COLOR_SIDEBAR_BORDER = "#1a1a1a"
-COLOR_CARD_BG = "#0a0a0a"
-COLOR_CARD_BORDER = "#1a1a1a"
-COLOR_TEXT_WHITE = "#ffffff"
-COLOR_TEXT_GRAY = "#aaaaaa"
+# Colores (Tema Adaptativo Light/Dark)
+# Formato: (Color Light, Color Dark)
 
-# Acentos
-COLOR_ACCENT_GREEN = "#2eff7b"  # Ingresos / Positivo
-COLOR_ACCENT_RED = "#ff3131"    # Gastos / Negativo
-COLOR_ACCENT_BLUE = "#3498db"   # Balance / Neutro
-COLOR_ACCENT_YELLOW = "#f1c40f" # Crédito / Precaución
+COLOR_BACKGROUND = ("#F6F8FA", "#0D1117") 
+COLOR_SIDEBAR = ("#FFFFFF", "#161B22")
+COLOR_SIDEBAR_BORDER = ("#E1E4E8", "#30363d") 
+COLOR_CARD_BG = ("#FFFFFF", "#161B22")
+COLOR_CARD_BORDER = ("#D1D5DA", "#30363d")
+
+# Textos
+COLOR_TEXT_WHITE = ("#24292E", "#ffffff") # Main text (Black in light, White in dark)
+COLOR_TEXT_GRAY = ("#586069", "#8b949e")
+
+# Accents
+COLOR_ACCENT_GREEN = ("#007F87", "#00F2FF")   # Cyan/Teal
+COLOR_ACCENT_RED = ("#A00045", "#FF006E")     # Magenta
+COLOR_ACCENT_BLUE = ("#0366d6", "#2f81f7")    # Blue
+COLOR_ACCENT_YELLOW = ("#946200", "#FFB800")  # Orange/Gold
+
+# Button/Interactive
+COLOR_BTN_HOVER = ("#F3F4F6", "#222222")
+COLOR_BTN_ACTIVE = ("#E1E4E8", "#1F2937")
 
 # Fuentes
 FONT_FAMILY = "Inter"
@@ -30,15 +40,32 @@ FONT_VALUE_BIG = (FONT_FAMILY, 28, "bold")
 # Tipos de Transacción
 TX_TYPE_INGRESO = "Ingreso"
 TX_TYPE_GASTO = "Gasto"
-TX_TYPE_PAGO_CREDITO = "PagoCredito"
+TX_TYPE_PAGO_CREDITO = "PagoCashea"
 
 # Métodos de Pago
 METHOD_EFECTIVO = "Efectivo"
 METHOD_DEBITO = "Debito"
-METHOD_CREDITO_INTERNO = "CreditoInterno"
+METHOD_CREDITO_INTERNO = "CreditoCashea"
 
 # Categorías por defecto
 CATEGORIAS = [
     "Comida", "Renta", "Transporte", "Servicios", 
-    "Entretenimiento", "Salud", "Sueldo", "Freelance", "Otros"
+    "Entretenimiento", "Salud", "Sueldo", "Freelance", "Ropa" 
 ]
+
+# Helper to get appropriate color based on current appearance mode
+import customtkinter as ctk
+
+def theme_color(color_tuple):
+    """Return the appropriate color from a tuple based on the current appearance mode.
+    If a plain string is provided, it is returned unchanged.
+    """
+    # If it's already a string (e.g., legacy color), return as is
+    if isinstance(color_tuple, str):
+        return color_tuple
+    # Expect a tuple (light, dark)
+    if not isinstance(color_tuple, tuple) or len(color_tuple) != 2:
+        return color_tuple
+    # Determine mode
+    dark = ctk.get_appearance_mode() == "Dark"
+    return color_tuple[1] if dark else color_tuple[0]

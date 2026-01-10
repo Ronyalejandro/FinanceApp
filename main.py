@@ -1,9 +1,9 @@
-"""Main Application Entry Point."""
+"""Punto de Entrada de la Aplicación."""
 import os
 import sys
 import customtkinter as ctk
 
-# Ensure 'utils' and other modules can be found
+# Asegurar que se encuentren 'utils' y otros módulos
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from utils.constants import *
@@ -15,10 +15,13 @@ from ui.components.sidebar import Sidebar
 from ui.views.dashboard import DashboardView
 from ui.views.transactions import TransactionsView
 from ui.views.credit import CreditView
-from ui.views.savings import SavingsView
+from ui.views.goals import GoalsView
 from ui.views.settings import SettingsView
+from ui.views.projections import ProjectionsView
+from ui.views.recurring import RecurringView
+from ui.views.reports import ReportsView
 
-# Global Config
+# Configuración Global
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("dark-blue")
 
@@ -28,7 +31,7 @@ class FinanceApp(ctk.CTk):
         
         # --- Configuración de Fondo ---
         self.configure(fg_color=COLOR_BACKGROUND)
-        self.title("FINANCE")
+        self.title("FinanceApp")
         self.geometry("1400x800")
         
         self.db = DatabaseManager()
@@ -62,9 +65,15 @@ class FinanceApp(ctk.CTk):
         elif view_name == "credit":
             CreditView(self, self.db, self.tx_service)
         elif view_name == "savings":
-            SavingsView(self, self.db)
+            GoalsView(self, self.db)
         elif view_name == "settings":
             SettingsView(self, self.db)
+        elif view_name == "projections":
+            ProjectionsView(self, self.db)
+        elif view_name == "recurring":
+            RecurringView(self, self.db)
+        elif view_name == "reports":
+            ReportsView(self, self.db)
 
 if __name__ == "__main__":
     app = FinanceApp()
