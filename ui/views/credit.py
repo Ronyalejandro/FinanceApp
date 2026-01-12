@@ -1,4 +1,4 @@
-"""Credit View."""
+"""Vista de Crédito (Cashea)."""
 import customtkinter as ctk
 from datetime import datetime
 from tkinter import messagebox
@@ -62,12 +62,12 @@ class CreditView(ctk.CTkFrame):
             val = float(self.new_limit_var.get())
             self.db.update_credit_limit(val)
             self._refresh_data()
-        except ValueError: messagebox.showerror("Error", "Invalid Number")
+        except ValueError: messagebox.showerror("Error", "Número Inválido")
 
     def pay_credit(self):
         try:
             val = float(self.pay_credit_var.get())
             self.tx_service.create_transaction("PagoCredito", "Financiero", val, datetime.now().strftime("%Y-%m-%d"), "Abono Crédito", "Transferencia")
             self._refresh_data()
-            messagebox.showinfo("Success", "Pago procesado")
-        except ValueError: messagebox.showerror("Error", "Invalid Amount")
+            messagebox.showinfo("Éxito", "Pago procesado")
+        except ValueError: messagebox.showerror("Error", "Monto Inválido")

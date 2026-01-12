@@ -1,4 +1,4 @@
-"""Recurring Transactions View."""
+"""Vista de Transacciones Recurrentes."""
 import customtkinter as ctk
 from tkinter import messagebox
 from utils.constants import *
@@ -11,19 +11,19 @@ class RecurringView(ctk.CTkFrame):
         self._setup_ui()
 
     def _setup_ui(self):
-        # Header
+        # Encabezado
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", pady=(0, 30))
         ctk.CTkLabel(header, text="Suscripciones y Pagos Fijos", font=FONT_TITLE_MAIN, text_color=COLOR_TEXT_WHITE).pack(side="left")
         
-        # Add New Form
+        # Formulario para agregar nueva
         add_frame = ctk.CTkFrame(self, fg_color=COLOR_CARD_BG, corner_radius=12, border_width=1, border_color=COLOR_CARD_BORDER)
         add_frame.pack(fill="x", pady=10)
         
-        # Header for add section
+        # Cabecera para sección de agregar
         ctk.CTkLabel(add_frame, text="Nueva Suscripción", font=FONT_SUBTITLE, text_color=theme_color(COLOR_TEXT_WHITE)).pack(anchor="w", padx=20, pady=(15, 10))
 
-        # Form grid with explicit labels for each field
+        # Cuadrícula de formulario con etiquetas explícitas
         form_grid = ctk.CTkFrame(add_frame, fg_color="transparent")
         form_grid.pack(fill="x", padx=20, pady=(0, 15))
 
@@ -48,7 +48,7 @@ class RecurringView(ctk.CTkFrame):
         # Botón para añadir la suscripción
         ctk.CTkButton(form_grid, text="Añadir", command=self.add_recurring, fg_color=theme_color(COLOR_ACCENT_BLUE), width=100).pack(side="left")
         
-        # List
+        # Lista
         self.list_scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.list_scroll.pack(fill="both", expand=True)
         
@@ -75,13 +75,13 @@ class RecurringView(ctk.CTkFrame):
         inner = ctk.CTkFrame(row, fg_color="transparent")
         inner.pack(fill="x", padx=15, pady=10)
         
-        # Info
+        # Información
         ctk.CTkLabel(inner, text=name, font=("Inter", 14, "bold"), text_color="white", width=150, anchor="w").pack(side="left")
         ctk.CTkLabel(inner, text=f"${amount:.2f}", font=("Inter", 14), text_color=COLOR_ACCENT_RED, width=100, anchor="w").pack(side="left")
         ctk.CTkLabel(inner, text=f"Día {day}", font=("Inter", 12), text_color=COLOR_TEXT_GRAY, width=80).pack(side="left")
         ctk.CTkLabel(inner, text=cat, font=("Inter", 12), text_color=COLOR_TEXT_GRAY, width=120).pack(side="left")
         
-        # Actions
+        # Acciones
         # Botón de eliminar suscripción con colores adaptativos
         ctk.CTkButton(inner, text="🗑", width=30, height=30, fg_color="transparent", text_color=theme_color(COLOR_ACCENT_RED), hover_color=theme_color(COLOR_BTN_HOVER),
                        command=lambda: self.delete_recurring(rid)).pack(side="right")

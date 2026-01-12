@@ -158,6 +158,39 @@ class DatabaseManager:
             cursor.execute("SELECT * FROM transacciones ORDER BY fecha DESC, id DESC LIMIT ?", (limit,))
             return cursor.fetchall()
 
+    def delete_transaction(self, tx_id: int) -> None:
+        """Elimina una transacción y revierte su impacto en el crédito si aplica."""
+        conn = self.connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            cursor = conn.cursor()
+
+            # 1. Obtener detalles de la transacción antes de borrar
+            cursor.execute("SELECT tipo, monto, metodo_pago FROM transacciones WHERE id = ?", (tx_id,))
+            row = cursor.fetchone()
+            if not row:
+                return
+
+            tipo, monto, metodo = row
+
+            # 2. Revertir impacto en crédito
+            if metodo == "CreditoInterno" and tipo == "Gasto":
+                # Devolver al saldo disponible (restar de usado)
+                cursor.execute("UPDATE credito_config SET saldo_utilizado = saldo_utilizado - ?", (monto,))
+            elif tipo == "PagoCredito":
+                # Volver a aumentar la deuda
+                cursor.execute("UPDATE credito_config SET saldo_utilizado = saldo_utilizado + ?", (monto,))
+
+            # 3. Borrar la transacción
+            cursor.execute("DELETE FROM transacciones WHERE id = ?", (tx_id,))
+            
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     def get_recent_transactions(self, days: int = 90) -> List[tuple]:
         """Obtiene transacciones de los últimos 'days' días."""
         from datetime import datetime, timedelta
@@ -291,20 +324,20 @@ class DatabaseManager:
             conn.execute("BEGIN IMMEDIATE")
             cursor = conn.cursor()
 
-            # 1. Get Plan Name for description
+            # 1. Obtener nombre del plan para la descripción
             cursor.execute("SELECT nombre_plan FROM planes_ahorro WHERE id = ?", (plan_id,))
             row = cursor.fetchone()
             if not row:
                 raise ValueError("Plan no encontrado")
             plan_name = row[0]
 
-            # 2. Add Transaction (Expense)
+            # 2. Añadir Transacción (Gasto)
             cursor.execute('''
                 INSERT INTO transacciones (tipo, categoria, monto, fecha, descripcion, metodo_pago)
                 VALUES (?, ?, ?, ?, ?, ?)
             ''', ("Gasto", "Ahorro/Plan", amount, date_str, f"Aporte a {plan_name}", "Efectivo"))
 
-            # 3. Update Plan Balance
+            # 3. Actualizar Saldo del Plan
             cursor.execute("UPDATE planes_ahorro SET monto_actual = monto_actual + ? WHERE id = ?", (amount, plan_id))
 
             conn.commit()

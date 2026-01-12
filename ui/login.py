@@ -1,4 +1,4 @@
-"""Login Window implementation with Onboarding and Recovery."""
+"""Implementación de la Ventana de Inicio de Sesión con Onboarding y Recuperación."""
 import sys
 import customtkinter as ctk
 from tkinter import messagebox
@@ -10,7 +10,7 @@ class LoginWindow(ctk.CTkToplevel):
     def __init__(self, parent, on_success) -> None:
         super().__init__(parent)
         self.title("Seguridad - FinanceApp")
-        self.geometry("400x500") # Taller for profile form
+        self.geometry("400x500") # Más alto para el formulario de perfil
         self.resizable(False, False)
         self.on_success = on_success
         
@@ -19,10 +19,10 @@ class LoginWindow(ctk.CTkToplevel):
 
         self.configure(fg_color=COLOR_BACKGROUND)
         
-        # State Data
+        # Datos de Estado
         self.temp_pin = None
         
-        # States: "LOGIN", "SETUP_PIN", "SETUP_SECURITY", "SETUP_PROFILE", "RECOVERY"
+        # Estados: "LOGIN", "SETUP_PIN", "SETUP_SECURITY", "SETUP_PROFILE", "RECOVERY"
         self.login_state = "SETUP_PIN" if is_first_time() else "LOGIN"
         
         self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -56,7 +56,7 @@ class LoginWindow(ctk.CTkToplevel):
         elif self.login_state == "RECOVERY":
             self._render_recovery()
 
-    # --- Render Methods ---
+    # --- Métodos de Renderizado ---
     def _render_login(self):
         ctk.CTkLabel(self.main_frame, text="BIENVENIDO", font=("Inter", 24, "bold"), text_color=COLOR_TEXT_WHITE).pack(pady=(40, 10))
         ctk.CTkLabel(self.main_frame, text="Ingrese su PIN", font=("Inter", 14), text_color=COLOR_TEXT_GRAY).pack(pady=(0, 20))
@@ -124,15 +124,20 @@ class LoginWindow(ctk.CTkToplevel):
         ctk.CTkButton(self.main_frame, text="Verificar y Resetear PIN", command=self._handle_recovery, fg_color=COLOR_ACCENT_RED).pack(pady=20, fill="x")
         ctk.CTkButton(self.main_frame, text="Cancelar", command=lambda: self._utils_set_state("LOGIN"), fg_color="transparent").pack()
 
-    # --- Handlers ---
+    # --- Manejadores ---
     def _utils_set_state(self, new_state):
         self.login_state = new_state
         self.render_current_state()
 
     def _handle_login(self):
         if verify_pin(self.entry_pin.get()):
-            self.on_success()
-            self.destroy()
+            try:
+                self.on_success()
+                self.destroy()
+            except Exception as e:
+                messagebox.showerror("Error de Inicio", f"Error al iniciar la aplicación: {e}", parent=self)
+                # Opcionalmente podrías forzar el cierre de la ventana de login aquí
+                # self.destroy() 
         else:
             messagebox.showerror("Error", "PIN Incorrecto", parent=self)
             self.entry_pin.delete(0, "end")
@@ -152,7 +157,7 @@ class LoginWindow(ctk.CTkToplevel):
             messagebox.showerror("Error", "Campos obligatorios", parent=self)
             return
         
-        # Save PIN and Security info
+        # Guardar PIN e información de seguridad
         try:
             save_pin_hash(self.temp_pin, q, a)
             self._utils_set_state("SETUP_PROFILE")
@@ -180,18 +185,18 @@ class LoginWindow(ctk.CTkToplevel):
         ans = self.entry_recovery_answer.get()
         if verify_recovery_answer(ans):
             messagebox.showinfo("Correcto", "Respuesta correcta. Por favor defina su nuevo PIN.", parent=self)
-            # Clear config logic? Or just overwrite.
-            # Ideally we want to keep profile but reset PIN.
-            # For simplicity, we can go to SETUP_PIN state, but need to ensure it doesn't wipe profile unless intended.
-            # save_pin_hash preserves profile if passing new pin. 
+            # ¿Lógica de limpieza de configuración? O simplemente sobrescribir.
+            # Idealmente queremos mantener el perfil pero resetear el PIN.
+            # Por simplicidad, podemos ir al estado SETUP_PIN, pero debemos asegurar que no borre el perfil a menos que sea intencional.
+            # save_pin_hash preserva el perfil si se pasa el nuevo pin. 
             self._utils_set_state("SETUP_PIN")
-            # Note: SETUP_PIN flow will ask for Security Q again. 
-            # Improvement: Add a specialized "RESET_PIN" state that only asks for PIN and keeps old security Q/A.
-            # For now, full re-setup (PIN + Security) is safer/easier. Profile will be preserved by logic in security.py 
-            # BUT wait, logic in security.py for save_pin_hash uses "current_data.get('profile')".
-            # So if we run full setup again, we need to make sure we don't overwrite profile with empty if we don't reach step 3.
-            # Actually, Step 3 (Profile) writes to 'profile' key. 
-            # If user goes SETUP_PIN -> SETUP_SECURITY -> SETUP_PROFILE, they might overwrite profile.
-            # Let's just guide them through full Setup again, it allows updating profile too which is fine.
+            # Nota: El flujo SETUP_PIN volverá a pedir la pregunta de seguridad. 
+            # Mejora: Añadir un estado especializado "RESET_PIN" que solo pida el PIN y mantenga la antigua Pregunta/Respuesta de seguridad.
+            # Por ahora, la reconfiguración completa (PIN + Seguridad) es más segura/fácil. El perfil se preservará por la lógica en security.py 
+            # PERO espera, la lógica en security.py para save_pin_hash usa "current_data.get('profile')".
+            # Así que si ejecutamos la configuración completa de nuevo, debemos asegurarnos de no sobrescribir el perfil con vacío si no llegamos al paso 3.
+            # En realidad, el Paso 3 (Perfil) escribe en la clave 'profile'. 
+            # Si el usuario va SETUP_PIN -> SETUP_SECURITY -> SETUP_PROFILE, podría sobrescribir el perfil.
+            # Simplemente guiémoslos a través de la Configuración completa de nuevo, permite actualizar el perfil también, lo cual está bien.
         else:
             messagebox.showerror("Error", "Respuesta incorrecta", parent=self)

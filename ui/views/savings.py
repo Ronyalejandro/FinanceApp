@@ -1,4 +1,4 @@
-"""Vista de Metas de Ahorro."""
+"""Vista de Metas de Ahorro (Legado)."""
 import customtkinter as ctk
 from tkinter import messagebox
 from utils.constants import *
@@ -13,8 +13,7 @@ class SavingsView(ctk.CTkFrame):
     def _setup_ui(self):
         ctk.CTkLabel(self, text="Metas de Ahorro", font=FONT_TITLE_MAIN, text_color=COLOR_TEXT_WHITE).pack(anchor="w", pady=(0, 40))
 
-        # Agregar formulario de objetivo
-
+        # Formulario para agregar objetivo
         add_frame = ctk.CTkFrame(self, fg_color=COLOR_CARD_BG, corner_radius=12, border_width=1, border_color=COLOR_CARD_BORDER)
         add_frame.pack(fill="x", pady=10)
         
@@ -55,7 +54,7 @@ class SavingsView(ctk.CTkFrame):
         try:
             self.db.add_savings_goal(self.goal_name.get(), float(self.goal_target.get()))
             self.refresh_goals()
-        except ValueError: messagebox.showerror("Error", "Invalid Amount")
+        except ValueError: messagebox.showerror("Error", "Monto Inválido")
 
     def add_savings(self, gid, amount):
         self.db.update_savings_progress(gid, amount)

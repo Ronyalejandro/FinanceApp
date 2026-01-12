@@ -1,4 +1,4 @@
-"""Service for data export and management."""
+"""Servicio para la exportación y gestión de datos."""
 import csv
 import shutil
 import os
@@ -11,12 +11,12 @@ class DataService:
         self.db = db
 
     def export_transactions_csv(self, filepath: str) -> None:
-        """Export all transactions to a CSV file."""
-        transactions = self.db.get_transactions(limit=10000) # Get all/many
+        """Exporta todas las transacciones a un archivo CSV."""
+        transactions = self.db.get_transactions(limit=10000) # Obtener todas/muchas
         if not transactions:
             return
 
-        # Define headers based on DB structure
+        # Definir encabezados basados en la estructura de la BD
         headers = ["ID", "Tipo", "Categoría", "Monto", "Fecha", "Descripción", "Método"]
 
         with open(filepath, 'w', newline='', encoding='utf-8') as f:
@@ -25,7 +25,7 @@ class DataService:
             writer.writerows(transactions)
 
     def backup_database(self, target_dir: str) -> str:
-        """Create a safety backup of the database file."""
+        """Crea una copia de seguridad del archivo de base de datos."""
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
             

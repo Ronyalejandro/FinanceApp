@@ -34,7 +34,7 @@ class TransactionsView(ctk.CTkFrame):
         input_grid = ctk.CTkFrame(form_frame, fg_color="transparent")
         input_grid.pack(fill="x", padx=20, pady=20)
 
-        # Configuración de Grid
+        # Configuración de Cuadrícula (Grid)
         ctk.CTkLabel(input_grid, text="Tipo:", font=FONT_BODY).grid(row=0, column=0, padx=10, pady=5, sticky="w")
         ctk.CTkOptionMenu(input_grid, variable=self.var_tipo, values=[TX_TYPE_INGRESO, TX_TYPE_GASTO]).grid(row=0, column=1, padx=10, pady=5)
         
@@ -112,7 +112,7 @@ class TransactionsView(ctk.CTkFrame):
             )
             self.var_monto.set(""); self.var_desc.set("")
             self.refresh_table()
-            messagebox.showinfo("Success", "Transacción guardada exitosamente")
+            messagebox.showinfo("Éxito", "Transacción guardada exitosamente")
         except ValueError as e:
             messagebox.showerror("Error", str(e))
 
@@ -120,11 +120,11 @@ class TransactionsView(ctk.CTkFrame):
         from tkinter import filedialog
         from services.data_service import DataService
         
-        filename = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
+        filename = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("Archivos CSV", "*.csv")])
         if filename:
             try:
                 ds = DataService(self.db)
                 ds.export_transactions_csv(filename)
-                messagebox.showinfo("Success", "Datos exportados exitosamente")
+                messagebox.showinfo("Éxito", "Datos exportados exitosamente")
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to export: {e}")
+                messagebox.showerror("Error", f"Fallo al exportar: {e}")

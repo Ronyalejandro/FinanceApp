@@ -1,4 +1,4 @@
-"""Reports View."""
+"""Vista de Reportes."""
 import customtkinter as ctk
 from utils.constants import *
 try:
@@ -12,6 +12,7 @@ class ReportsView(ctk.CTkFrame):
     def __init__(self, parent, db):
         super().__init__(parent, corner_radius=0, fg_color="transparent")
         self.db = db
+        # Configuración de grid para la vista
         self.grid(row=0, column=1, sticky="nsew", padx=40, pady=30)
         self._setup_ui()
 
@@ -22,14 +23,14 @@ class ReportsView(ctk.CTkFrame):
             ctk.CTkLabel(self, text="Matplotlib no instalado. No se pueden mostrar gráficos.", text_color="red").pack()
             return
 
-        # Main Scroll
+        # Desplazamiento principal
         scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
         scroll.pack(fill="both", expand=True)
         
-        # 1. Monthly Trend (Line Chart)
+        # 1. Tendencia Mensual (Gráfico de Líneas)
         self._create_trend_chart(scroll)
         
-        # 2. Category Breakdown (Bar/Pie)
+        # 2. Desglose por Categoría (Barras/Pastel)
         self._create_category_chart(scroll)
 
     def _create_trend_chart(self, parent):
@@ -38,15 +39,15 @@ class ReportsView(ctk.CTkFrame):
         
         ctk.CTkLabel(frame, text="Tendencia de Gastos (Últimos 90 días)", font=("Inter", 16, "bold"), text_color=theme_color(COLOR_TEXT_WHITE)).pack(anchor="w", padx=20, pady=15)
         
-        # Data
+        # Datos
         txs = self.db.get_recent_transactions(90)
-        # Process dates
+        # Procesar fechas
         from collections import defaultdict
         import datetime
         daily_expenses = defaultdict(float)
         
         for t in txs:
-            # t: id, type, cat, amount, date, desc, method
+            # t: id, tipo, cat, monto, fecha, desc, metodo
             if t[1] == "Gasto":
                 daily_expenses[t[4]] += t[3]
                 
@@ -57,7 +58,7 @@ class ReportsView(ctk.CTkFrame):
             ctk.CTkLabel(frame, text="No hay suficientes datos", text_color="gray").pack(pady=30)
             return
 
-        # Plot
+        # Gráfico
         fig = plt.Figure(figsize=(8, 4), dpi=100, facecolor=theme_color(COLOR_CARD_BG))
         ax = fig.add_subplot(111)
         
@@ -88,7 +89,7 @@ class ReportsView(ctk.CTkFrame):
         fig = plt.Figure(figsize=(8, 4), dpi=100, facecolor=theme_color(COLOR_CARD_BG))
         ax = fig.add_subplot(111)
         
-        # Horizontal Bar
+        # Gráfico de Barras Horizontal
         y_pos = range(len(cats))
         ax.barh(y_pos, vals, color=theme_color(COLOR_ACCENT_RED))
         ax.set_yticks(y_pos)

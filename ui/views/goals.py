@@ -1,4 +1,4 @@
-"""Goals View Implementation: Plan by Objectives."""
+"""Implementación de la Vista de Objetivos: Plan por Objetivos."""
 import customtkinter as ctk
 from tkinter import messagebox
 from utils.constants import *
@@ -10,55 +10,82 @@ class GoalsView(ctk.CTkFrame):
     def __init__(self, parent, db):
         super().__init__(parent, corner_radius=0, fg_color="transparent")
         self.db = db
-        # Grid layout for the main view
-        self.grid(row=0, column=1, sticky="nsew", padx=20, pady=20)
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1) # Scrollable part
+        # Alinear con el espaciado de RecurringView
+        self.grid(row=0, column=1, sticky="nsew", padx=40, pady=30)
 
         self._avg_savings = self._calculate_avg_savings()
         self._setup_ui()
 
     def _calculate_avg_savings(self):
-        """Estimate monthly savings capacity based on last 90 days."""
-        # This is a simple estimation: (Total Income - Total Expenses) / 3 months
-        # A more robust one would query monthly aggregates.
-        # For now, let's look at global summary or short term history.
-        # Let's use get_summary() which is global, potentially too broad if app used for years.
-        # Better: let's assume a default or calculate from last month if possible.
-        # To keep it fast, we'll try to get expenses by category and infer.
-        # Actually, let's use a simple heuristic for now: 20% of income if no data, 
-        # or just (Income - Expense) if positive.
-        
-        # We'll fetch global for now as a baseline.
+        """Estima la capacidad de ahorro mensual basada en los últimos 90 días.
+        Heurística: (Ingresos Totales - Gastos Totales) / 3
+        """
         ing, gast = self.db.get_summary()
         balance = ing - gast
-        # Assuming app usage time is tricky. Let's just say Balance / 12 for conservative estimate if long term?
-        # Or better: let's just use current Balance as "Available to allocate" but that doesn't help with "Time to complete".
-        # "Time to complete" implies FUTURE flux.
-        # Let's use a fixed placeholder logic if no historical monthly data is easy:
-        # If Balance > 0, assume we can save 10% of Balance per month? No that's weird.
-        # Let's stick to: (Total Income - Total Expense) / 3 (assuming 3 months usage)
-        # Improvement: Add get_monthly_average to DB later.
         if balance > 0:
-            return balance / 3 # Rough estimate
+            return balance / 3 # Estimación aproximada
         return 0
 
     def _setup_ui(self):
-        # Header
+        # Encabezado (Usando pack para coincidir con RecurringView)
         header = ctk.CTkFrame(self, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 20))
+        header.pack(fill="x", pady=(0, 30))
         
-        ctk.CTkLabel(header, text="Objetivos", font=FONT_TITLE_MAIN, text_color=COLOR_TEXT_WHITE).pack(side="left")
+        ctk.CTkLabel(header, text="Objetivos de Ahorro", font=FONT_TITLE_MAIN, text_color=COLOR_TEXT_WHITE).pack(side="left")
         
-        ctk.CTkButton(header, text="+ Nuevo Objetivo", command=self._show_add_dialog, 
-                      fg_color=COLOR_ACCENT_BLUE, width=120).pack(side="right")
+        # Formulario para agregar nuevo (En línea, EXACTAMENTE como RecurringView)
+        add_frame = ctk.CTkFrame(self, fg_color=COLOR_CARD_BG, corner_radius=12, border_width=1, border_color=COLOR_CARD_BORDER)
+        add_frame.pack(fill="x", pady=10)
+        
+        ctk.CTkLabel(add_frame, text="Nuevo Objetivo", font=FONT_SUBTITLE, text_color=theme_color(COLOR_TEXT_WHITE)).pack(anchor="w", padx=20, pady=(15, 10))
 
-        # Scrollable Grid for Cards
+        form_grid = ctk.CTkFrame(add_frame, fg_color="transparent")
+        form_grid.pack(fill="x", padx=20, pady=(0, 15))
+
+        self.name_var = ctk.StringVar()
+        self.target_var = ctk.StringVar()
+
+        # Etiquetas y campos con el mismo espaciado que RecurringView
+        ctk.CTkLabel(form_grid, text="Nombre:", text_color=theme_color(COLOR_TEXT_WHITE)).pack(side="left", padx=(0, 5))
+        ctk.CTkEntry(form_grid, textvariable=self.name_var, placeholder_text="Ej. Viaje a Japón", width=180).pack(side="left", padx=(0, 15))
+        
+        ctk.CTkLabel(form_grid, text="Monto Meta:", text_color=theme_color(COLOR_TEXT_WHITE)).pack(side="left", padx=(0, 5))
+        ctk.CTkEntry(form_grid, textvariable=self.target_var, placeholder_text="Ej. 2000", width=100).pack(side="left", padx=(0, 15))
+
+        ctk.CTkButton(form_grid, text="Añadir", command=self._handle_add_goal, fg_color=theme_color(COLOR_ACCENT_BLUE), width=100).pack(side="left")
+
+        # Cuadrícula desplazable para tarjetas (Usando pack)
         self.cards_scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.cards_scroll.grid(row=1, column=0, sticky="nsew")
-        self.cards_scroll.grid_columnconfigure((0, 1, 2), weight=1) # 3 columns responsive
+        self.cards_scroll.pack(fill="both", expand=True, pady=10)
+        # Necesitamos columnas para las tarjetas dentro del marco desplazable
+        self.cards_scroll.grid_columnconfigure((0, 1, 2), weight=1)
 
         self.refresh_plans()
+
+    def _handle_add_goal(self):
+        try:
+            name = self.name_var.get()
+            target_str = self.target_var.get()
+            if not name or not target_str:
+                raise ValueError("Campos obligatorios")
+            
+            t = float(target_str)
+            if t <= 0:
+                raise ValueError("Monto debe ser > 0")
+            
+            # Asignar automáticamente un color neón aleatorio
+            neon_colors = ["#00FFFF", "#FF00FF", "#00FF00", "#FFFF00", "#FF0099", "#9D00FF"]
+            color = random.choice(neon_colors)
+            
+            self.db.create_plan(name, t, "2026-12-31", color) # Fecha provisional
+            
+            # Reiniciar formulario
+            self.name_var.set("")
+            self.target_var.set("")
+            self.refresh_plans()
+            
+        except ValueError as e:
+            messagebox.showerror("Error", str(e), parent=self)
 
     def refresh_plans(self):
         for w in self.cards_scroll.winfo_children():
@@ -66,12 +93,12 @@ class GoalsView(ctk.CTkFrame):
 
         plans = self.db.get_plans()
         
-        # Layout: 3 columns
+        # Diseño: 3 columnas
         col = 0
         row = 0
         
         for plan in plans:
-            # Plan: id, name, target, current, date, color
+            # Plan: id, nombre, meta, actual, fecha, color
             pid, name, target, current, date_limit, color = plan
             self._create_plan_card(pid, name, target, current, date_limit, color, row, col)
             
@@ -81,13 +108,19 @@ class GoalsView(ctk.CTkFrame):
                 row += 1
 
     def _create_plan_card(self, pid, name, target, current, date_limit, color, r, c):
-        # Card Frame
+        # Marco de la Tarjeta
         card = ctk.CTkFrame(self.cards_scroll, fg_color="#161B22", corner_radius=15, 
                             border_width=2, border_color=color)
         card.grid(row=r, column=c, padx=10, pady=10, sticky="nsew")
         
-        # Card Header: Icon + Title
-        # Using a simple circle label as 'icon' with plan color
+        # Acciones: Botón Eliminar (Arriba a la derecha, estilo RecurringView)
+        delete_btn = ctk.CTkButton(card, text="🗑", width=30, height=30, fg_color="transparent", 
+                                   text_color=theme_color(COLOR_ACCENT_RED), hover_color=theme_color(COLOR_BTN_HOVER),
+                                   font=("Arial", 16),
+                                   command=lambda i=pid: self._confirm_delete(i, name))
+        delete_btn.place(relx=0.98, rely=0.02, anchor="ne")
+        
+        # Cabecera de Tarjeta: Icono + Título
         header_frame = ctk.CTkFrame(card, fg_color="transparent")
         header_frame.pack(fill="x", padx=15, pady=(15, 10))
         
@@ -96,7 +129,7 @@ class GoalsView(ctk.CTkFrame):
         
         ctk.CTkLabel(header_frame, text=name, font=FONT_SUBTITLE, text_color=COLOR_TEXT_WHITE).pack(side="left")
         
-        # Progress Bar
+        # Barra de Progreso
         pct = current / target if target > 0 else 0
         if pct > 1: pct = 1
         
@@ -104,17 +137,17 @@ class GoalsView(ctk.CTkFrame):
         prog_bar.set(pct)
         prog_bar.pack(fill="x", padx=15, pady=10)
         
-        # Stats
+        # Estadísticas
         stats_frame = ctk.CTkFrame(card, fg_color="transparent")
         stats_frame.pack(fill="x", padx=15, pady=5)
         
         missing = target - current
-        time_msg = "Completado!" if missing <= 0 else self._calculate_time_remaining(missing)
+        time_msg = "¡Completado!" if missing <= 0 else self._calculate_time_remaining(missing)
         
         ctk.CTkLabel(stats_frame, text=f"{int(pct*100)}%", font=("Inter", 12, "bold"), text_color=color).pack(side="left")
         ctk.CTkLabel(stats_frame, text=f"Faltan ${missing:,.0f}", font=("Inter", 12), text_color=COLOR_TEXT_GRAY).pack(side="right")
         
-        # Bottom: Time + Action
+        # Parte Inferior: Tiempo + Acción
         bottom_frame = ctk.CTkFrame(card, fg_color="transparent")
         bottom_frame.pack(fill="x", padx=15, pady=(10, 15))
         
@@ -126,56 +159,13 @@ class GoalsView(ctk.CTkFrame):
                                 command=lambda i=pid: self._show_deposit_dialog(i, name, color))
             btn.pack(fill="x")
         else:
-            ctk.CTkButton(bottom_frame, text="¡Completado!", height=28, fg_color=color, text_color="#000", state="disabled").pack(fill="x")
-        
-        # Trash/Delete Button (Small, Transparent)
-        delete_btn = ctk.CTkButton(card, text="🗑", width=30, height=30, fg_color="transparent", 
-                                   hover_color="#330000", text_color="#FF4444", font=("Arial", 16),
-                                   command=lambda i=pid: self._confirm_delete(i, name))
-        delete_btn.place(relx=0.9, rely=0.02, anchor="ne") # Top right corner for cleaner "trash" look, or bottom?
-        # User asked for: "debajo de cada objetivo creado en forma de papelera pequena"
-        # Since I'm using pack for other elements, placing it at the bottom might be tricky with pack/grid mix.
-        # Let's pack it at the very bottom of the card.
-        delete_btn.pack(side="bottom", pady=(0, 10))
-
+            ctk.CTkButton(bottom_frame, text="¡Meta Lograda!", height=28, fg_color=color, text_color="#000", state="disabled").pack(fill="x")
 
     def _calculate_time_remaining(self, missing_amount):
         if self._avg_savings <= 0:
             return "Indefinido (Sin ahorro mensual)"
         months = math.ceil(missing_amount / self._avg_savings)
         return f"~{months} meses restantes"
-
-    def _show_add_dialog(self):
-        # Quick modal to add plan. Ideally explicit class, but inline for speed here.
-        dialog = ctk.CTkToplevel(self)
-        dialog.title("Nuevo Plan")
-        dialog.geometry("400x400")
-        dialog.attributes("-topmost", True)
-        
-        ctk.CTkLabel(dialog, text="Nuevo Objetivo", font=FONT_SUBTITLE).pack(pady=20)
-        
-        name_var = ctk.StringVar()
-        target_var = ctk.StringVar()
-        
-        # Auto-assign random neon color
-        neon_colors = ["#00FFFF", "#FF00FF", "#00FF00", "#FFFF00", "#FF0099", "#9D00FF"]
-        color_var = ctk.StringVar(value=random.choice(neon_colors))
-        
-        ctk.CTkEntry(dialog, textvariable=name_var, placeholder_text="¿Cuál será nuestro objetivo?").pack(pady=10, padx=20, fill="x")
-        ctk.CTkEntry(dialog, textvariable=target_var, placeholder_text="Monto del objetivo").pack(pady=10, padx=20, fill="x")
-        # Color input removed per request
-        
-        def save():
-            try:
-                t = float(target_var.get())
-                if t <= 0: raise ValueError
-                self.db.create_plan(name_var.get(), t, "2026-12-31", color_var.get()) # Date placeholder
-                dialog.destroy()
-                self.refresh_plans()
-            except ValueError:
-                messagebox.showerror("Error", "Datos inválidos", parent=dialog)
-                
-        ctk.CTkButton(dialog, text="Crear Objetivo", command=save, fg_color=COLOR_ACCENT_GREEN, text_color="#000000").pack(pady=20)
 
     def _show_deposit_dialog(self, pid, name, color):
         dialog = ctk.CTkToplevel(self)
@@ -208,6 +198,6 @@ class GoalsView(ctk.CTkFrame):
             try:
                 self.db.delete_plan(pid)
                 self.refresh_plans()
-                # Optional: Show a quick info box or just toast
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo eliminar: {e}", parent=self)
+

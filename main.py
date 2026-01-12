@@ -6,9 +6,22 @@ import customtkinter as ctk
 # Asegurar que se encuentren 'utils' y otros módulos
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+from tkinter import messagebox
+import traceback
 from utils.constants import *
+from config import resource_path, DB_PATH
 from db.database import DatabaseManager
 from services.transaction_service import TransactionService
+
+def global_exception_handler(exctype, value, tb):
+    """Manejo de errores global para mostrar un messagebox en producción."""
+    error_msg = "".join(traceback.format_exception(exctype, value, tb))
+    print(error_msg) # Mantener en consola para depuración local
+    messagebox.showerror("Error Crítico de Aplicación", 
+                         f"Ha ocurrido un error inesperado:\n\n{value}\n\nConsulte el log para más detalles.")
+    # sys.exit(1) # Opcional: Cerrar la app tras un error crítico
+
+sys.excepthook = global_exception_handler
 
 from ui.login import LoginWindow
 from ui.components.sidebar import Sidebar
@@ -33,6 +46,14 @@ class FinanceApp(ctk.CTk):
         self.configure(fg_color=COLOR_BACKGROUND)
         self.title("FinanceApp")
         self.geometry("1400x800")
+        
+        # --- Configuración de Icono ---
+        try:
+            icon_path = resource_path("app_logo.ico")
+            if os.path.exists(icon_path):
+                self.iconbitmap(icon_path)
+        except Exception as e:
+            print(f"No se pudo cargar el icono: {e}")
         
         self.db = DatabaseManager()
         self.tx_service = TransactionService(self.db)
